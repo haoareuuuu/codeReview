@@ -68,7 +68,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     private val mvpMatrix = FloatArray(16) // 模型-视图-投影 矩阵，最终变换矩阵
 
     // --- 插值参数 ---
-    private val numInterpolationPointsPerSegment = 10 // 每个原始线段插值点的数量
+    private val numInterpolationPointsPerSegment = 30 // 每个原始线段插值点的数量 (增加点数以提高平滑度)
 
     init {
         // --- 对原始路径进行插值以获得平滑路径 ---
