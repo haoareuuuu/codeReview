@@ -1,18 +1,22 @@
 package com.hsl.product
 
+import android.graphics.PointF // 导入 PointF
 import android.opengl.GLES20
 import android.opengl.Matrix
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import java.util.LinkedList
-import kotlin.random.Random
+import kotlin.math.pow
+import kotlin.math.sqrt // 确保导入 sqrt
 
-import kotlin.math.cos
-import kotlin.math.sin
+// 移除未使用的导入
+// import java.util.LinkedList
+// import kotlin.random.Random
+// import kotlin.math.cos
+// import kotlin.math.sin
 
 // 彗星类，负责定义彗星的形状、着色器和绘制逻辑
-class Comet {
+class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 pathPoints
 
     // --- 着色器 --- (顶点着色器传递位置，片段着色器设置颜色)
     private val vertexShaderCode = """
@@ -46,9 +50,9 @@ class Comet {
     private var mvpMatrixHandle: Int = 0 // MVP 矩阵句柄
 
     // --- 顶点数据 --- (弧形的顶点)
-    private val vertexData: FloatArray // 存储顶点数据 (位置 + Alpha) 的数组
-    private val vertexBuffer: FloatBuffer // 存储顶点数据的缓冲区
-    private val vertexCount: Int // 顶点数量
+    private var vertexData: FloatArray // 改为 var 以便在 init 中赋值
+    private var vertexBuffer: FloatBuffer // 改为 var
+    private var vertexCount: Int // 改为 var
     // 每个顶点包含位置 (X, Y, Z) 和 Alpha (A)，共 4 个 float
     private val vertexStride: Int = (COORDS_PER_VERTEX_POS + COORDS_PER_VERTEX_ALPHA) * 4 // 每个顶点的步长（字节数）
 
@@ -63,129 +67,258 @@ class Comet {
     private val modelMatrix = FloatArray(16) // 模型矩阵，定义对象在世界空间中的位置和方向
     private val mvpMatrix = FloatArray(16) // 模型-视图-投影 矩阵，最终变换矩阵
 
+    // --- 插值参数 ---
+    private val numInterpolationPointsPerSegment = 10 // 每个原始线段插值点的数量
+
     init {
-        // 定义具有可变宽度的三角形带的弧形顶点
-        val numSegments = 100 // 弧形的分段数量，越多越平滑
-        val arcWidth = 1.6f // 弧形的宽度 (大致对应 x 轴 -0.8 到 0.8)
-        val arcHeight = 0.8f // 弧形的峰值高度
-        val startX = -arcWidth / 2f // 弧形的起始 X 坐标
-        val stepX = arcWidth / numSegments // 每个分段的 X 步长
-        val minWidth = 0.01f // 头部（起点）的宽度
-        val maxWidth = 0.08f // 尾部（终点）的宽度
-
-        val vertexDataList = mutableListOf<Float>() // 用于存储顶点数据 (位置+Alpha) 的可变列表
-        // 计算初始点的前一个点坐标（用于计算第一个分段的切线）
-        var prevX = startX
-        var prevY = arcHeight * (1 - (2 * prevX / arcWidth) * (2 * prevX / arcWidth)) // 抛物线方程
-
-        // 循环生成每个分段的顶点
-        for (i in 0..numSegments) {
-            val t = i.toFloat() / numSegments // 参数 t，从 0 到 1，表示在弧线上的位置
-            val currentX = startX + i * stepX // 当前点的 X 坐标
-            val currentY = arcHeight * (1 - (2 * currentX / arcWidth) * (2 * currentX / arcWidth)) // 当前点的 Y 坐标 (抛物线)
-
-            // 计算切线（使用有限差分近似）
-            val dx = currentX - prevX // X 方向的变化量
-            val dy = currentY - prevY // Y 方向的变化量
-            val length = kotlin.math.sqrt(dx * dx + dy * dy) // 切线向量的长度
-            val tangentX = if (length > 0) dx / length else 1.0f // 单位切线向量 X 分量 (处理长度为0的情况)
-            val tangentY = if (length > 0) dy / length else 0.0f // 单位切线向量 Y 分量
-
-            // 计算法线（垂直于切线）
-            val normalX = -tangentY // 法线向量 X 分量
-            val normalY = tangentX // 法线向量 Y 分量
-
-            // 根据参数 t 计算当前宽度（线性插值）
-            val currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f // 当前点处弧形宽度的一半
-
-            // 计算当前点处的三角形带的两个顶点
-            val x1 = currentX + normalX * currentHalfWidth // 顶点1 X 坐标 (沿法线方向)
-            val y1 = currentY + normalY * currentHalfWidth // 顶点1 Y 坐标
-            val x2 = currentX - normalX * currentHalfWidth // 顶点2 X 坐标 (沿法线反方向)
-            val y2 = currentY - normalY * currentHalfWidth // 顶点2 Y 坐标
-
-            // 计算当前点的 Alpha 值 (从头到尾 1.0 -> 0.0)
-            val currentAlpha = 1.0f - t
-
-            // 添加顶点1 (位置 + Alpha) 到列表
-            vertexDataList.add(x1)
-            vertexDataList.add(y1)
-            vertexDataList.add(0.0f) // Z 坐标
-            vertexDataList.add(currentAlpha) // Alpha
-
-            // 添加顶点2 (位置 + Alpha) 到列表
-            vertexDataList.add(x2)
-            vertexDataList.add(y2)
-            vertexDataList.add(0.0f) // Z 坐标
-            vertexDataList.add(currentAlpha) // Alpha
-
-            // 更新上一个点，用于下一次迭代计算切线
-            // 仅在第一个真实分段点之后更新 prev 值
-            if (i > 0 || numSegments == 0) { // 确保在第一个点之后更新
-                 prevX = currentX
-                 prevY = currentY
-            }
+        // --- 对原始路径进行插值以获得平滑路径 ---
+        val smoothPathPoints = if (pathPoints.size >= 2) {
+            interpolatePath(pathPoints, numInterpolationPointsPerSegment)
+        } else {
+            listOf() // 如果原始点不足，则路径为空
         }
 
-        vertexData = vertexDataList.toFloatArray() // 将可变列表转换为 FloatArray
-        // 每个顶点有 4 个 float (X, Y, Z, A)
-        vertexCount = vertexData.size / (COORDS_PER_VERTEX_POS + COORDS_PER_VERTEX_ALPHA) // 计算顶点总数
+        // --- 根据插值后的 smoothPathPoints 生成顶点数据 ---
+        if (smoothPathPoints.size < 2) {
+            // 如果点数少于2，无法形成路径，设置空数据或抛出异常
+            vertexData = FloatArray(0)
+            vertexCount = 0
+            // 初始化空的 FloatBuffer
+            val bb = ByteBuffer.allocateDirect(0)
+            bb.order(ByteOrder.nativeOrder())
+            vertexBuffer = bb.asFloatBuffer()
+            android.util.Log.w("Comet", "Interpolated path needs at least 2 points.") // 更新日志信息
+        } else {
+            val numSegments = smoothPathPoints.size - 1 // 使用插值后的点计算分段数量
+            val minWidth = 0.01f // 头部（起点）的宽度
+            val maxWidth = 0.08f // 尾部（终点）的宽度
 
-        // 初始化顶点字节缓冲区，用于存储顶点数据
-        val bb = ByteBuffer.allocateDirect(vertexData.size * 4) // 分配直接字节缓冲区 (每个 float 4字节)
-        bb.order(ByteOrder.nativeOrder()) // 设置字节顺序为本地顺序
-        vertexBuffer = bb.asFloatBuffer() // 将字节缓冲区转换为 FloatBuffer
-        vertexBuffer.put(vertexData) // 将顶点数据放入缓冲区
-        vertexBuffer.position(0) // 将缓冲区的位置重置为0，以便从头读取
+            val vertexDataList = mutableListOf<Float>() // 用于存储顶点数据 (位置+Alpha) 的可变列表
 
-        // 准备着色器和 OpenGL 程序
+            // 计算插值后路径的总长度，用于计算 t 值
+            var totalLength = 0f
+            for (i in 0 until numSegments) {
+                val p1 = smoothPathPoints[i]
+                val p2 = smoothPathPoints[i + 1]
+                totalLength += kotlin.math.sqrt((p2.x - p1.x).pow(2) + (p2.y - p1.y).pow(2))
+            }
+
+            var accumulatedLength = 0f
+
+            // 处理第一个点 (i=0)
+            val p0 = smoothPathPoints[0]
+            val p1 = smoothPathPoints[1]
+            var dx = p1.x - p0.x
+            var dy = p1.y - p0.y
+            var segmentLength = kotlin.math.sqrt(dx * dx + dy * dy)
+            var tangentX = if (segmentLength > 0) dx / segmentLength else 1.0f
+            var tangentY = if (segmentLength > 0) dy / segmentLength else 0.0f
+            var normalX = -tangentY
+            var normalY = tangentX
+            var t = 0f // 第一个点的 t 值为 0
+            var currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
+            var currentAlpha = 1.0f - t
+
+            // 添加第一个点的两个顶点
+            vertexDataList.add(p0.x + normalX * currentHalfWidth)
+            vertexDataList.add(p0.y + normalY * currentHalfWidth)
+            vertexDataList.add(0.0f) // Z
+            vertexDataList.add(currentAlpha) // Alpha
+
+            vertexDataList.add(p0.x - normalX * currentHalfWidth)
+            vertexDataList.add(p0.y - normalY * currentHalfWidth)
+            vertexDataList.add(0.0f) // Z
+            vertexDataList.add(currentAlpha) // Alpha
+
+            // 循环生成中间点的顶点 (i = 1 to numSegments - 1)
+            for (i in 1 until smoothPathPoints.size - 1) { // 使用插值后的点数
+                val prevP = smoothPathPoints[i - 1]
+                val currentP = smoothPathPoints[i]
+                val nextP = smoothPathPoints[i + 1]
+
+                // 计算前一段和后一段的切线
+                val dx1 = currentP.x - prevP.x
+                val dy1 = currentP.y - prevP.y
+                val len1 = kotlin.math.sqrt(dx1 * dx1 + dy1 * dy1)
+                val tx1 = if (len1 > 0) dx1 / len1 else 0f
+                val ty1 = if (len1 > 0) dy1 / len1 else 0f
+
+                val dx2 = nextP.x - currentP.x
+                val dy2 = nextP.y - currentP.y
+                val len2 = kotlin.math.sqrt(dx2 * dx2 + dy2 * dy2)
+                val tx2 = if (len2 > 0) dx2 / len2 else 0f
+                val ty2 = if (len2 > 0) dy2 / len2 else 0f
+
+                // 计算平均切线 (角平分线方向近似)
+                tangentX = (tx1 + tx2) / 2f
+                tangentY = (ty1 + ty2) / 2f
+                val tangentLength = kotlin.math.sqrt(tangentX * tangentX + tangentY * tangentY)
+                if (tangentLength > 0) {
+                    tangentX /= tangentLength
+                    tangentY /= tangentLength
+                } else {
+                    // 如果平均切线为0 (例如180度转弯)，使用前一段的切线作为法线方向的基础
+                    tangentX = tx1
+                    tangentY = ty1
+                }
+
+                // 计算法线
+                normalX = -tangentY
+                normalY = tangentX
+
+                // 更新累计长度
+                accumulatedLength += len1
+                t = if (totalLength > 0) accumulatedLength / totalLength else 0f // 当前点的 t 值
+                currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
+                currentAlpha = 1.0f - t
+
+                // 添加当前点的两个顶点
+                vertexDataList.add(currentP.x + normalX * currentHalfWidth)
+                vertexDataList.add(currentP.y + normalY * currentHalfWidth)
+                vertexDataList.add(0.0f) // Z
+                vertexDataList.add(currentAlpha) // Alpha
+
+                vertexDataList.add(currentP.x - normalX * currentHalfWidth)
+                vertexDataList.add(currentP.y - normalY * currentHalfWidth)
+                vertexDataList.add(0.0f) // Z
+                vertexDataList.add(currentAlpha) // Alpha
+            }
+
+            // 处理最后一个点 (i = numSegments)
+            val lastP = smoothPathPoints[smoothPathPoints.size - 1]
+            val secondLastP = smoothPathPoints[smoothPathPoints.size - 2]
+            dx = lastP.x - secondLastP.x
+            dy = lastP.y - secondLastP.y
+            segmentLength = kotlin.math.sqrt(dx * dx + dy * dy)
+            tangentX = if (segmentLength > 0) dx / segmentLength else 1.0f
+            tangentY = if (segmentLength > 0) dy / segmentLength else 0.0f
+            normalX = -tangentY
+            normalY = tangentX
+            t = 1f // 最后一个点的 t 值为 1
+            currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
+            currentAlpha = 1.0f - t // Alpha 为 0
+
+            // 添加最后一个点的两个顶点
+            vertexDataList.add(lastP.x + normalX * currentHalfWidth)
+            vertexDataList.add(lastP.y + normalY * currentHalfWidth)
+            vertexDataList.add(0.0f) // Z
+            vertexDataList.add(currentAlpha) // Alpha
+
+            vertexDataList.add(lastP.x - normalX * currentHalfWidth)
+            vertexDataList.add(lastP.y - normalY * currentHalfWidth)
+            vertexDataList.add(0.0f) // Z
+            vertexDataList.add(currentAlpha) // Alpha
+
+            vertexData = vertexDataList.toFloatArray() // 将可变列表转换为 FloatArray
+            // 每个顶点有 4 个 float (X, Y, Z, A)
+            vertexCount = vertexData.size / (COORDS_PER_VERTEX_POS + COORDS_PER_VERTEX_ALPHA) // 计算顶点总数
+
+            // 初始化顶点字节缓冲区，用于存储顶点数据
+            val bb = ByteBuffer.allocateDirect(vertexData.size * 4) // 分配直接字节缓冲区 (每个 float 4字节)
+            bb.order(ByteOrder.nativeOrder()) // 设置字节顺序为本地顺序
+            vertexBuffer = bb.asFloatBuffer() // 将字节缓冲区转换为 FloatBuffer
+            vertexBuffer.put(vertexData) // 将顶点数据放入缓冲区
+            vertexBuffer.position(0) // 将缓冲区的位置重置为0，以便从头读取
+        }
+
+        // --- 准备着色器和 OpenGL 程序 --- (这部分逻辑不变)
         val vertexShader: Int = CometRenderer.loadShader(GLES20.GL_VERTEX_SHADER, vertexShaderCode) // 加载顶点着色器
         val fragmentShader: Int = CometRenderer.loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderCode) // 加载片段着色器
 
         // 创建 OpenGL 程序并链接着色器
         program = GLES20.glCreateProgram().also {
-            GLES20.glAttachShader(it, vertexShader) // 附加顶点着色器
-            GLES20.glAttachShader(it, fragmentShader) // 附加片段着色器
-            GLES20.glLinkProgram(it) // 链接程序
-            checkGlError("glLinkProgram") // 检查链接错误
+            GLES20.glAttachShader(it, vertexShader)
+            GLES20.glAttachShader(it, fragmentShader)
+            GLES20.glLinkProgram(it)
+            checkGlError("glLinkProgram")
 
-            // 检查链接状态
             val linkStatus = IntArray(1)
             GLES20.glGetProgramiv(it, GLES20.GL_LINK_STATUS, linkStatus, 0)
-            if (linkStatus[0] == 0) { // 如果链接失败
-                val errorLog = GLES20.glGetProgramInfoLog(it) // 获取错误日志
-                android.util.Log.e("Comet", "Program linking failed: $errorLog") // 打印错误日志
-                GLES20.glDeleteProgram(it) // 删除程序
-                // 适当地处理错误，例如抛出异常
+            if (linkStatus[0] == 0) {
+                val errorLog = GLES20.glGetProgramInfoLog(it)
+                android.util.Log.e("Comet", "Program linking failed: $errorLog")
+                GLES20.glDeleteProgram(it)
                 throw RuntimeException("OpenGL Program Linking Failed: $errorLog")
             }
         }
-        checkGlError("glCreateProgram") // 检查创建程序错误
+        checkGlError("glCreateProgram")
 
-        // 获取着色器成员的句柄
-        positionHandle = GLES20.glGetAttribLocation(program, "vPosition") // 获取顶点位置属性句柄
+        // 获取着色器成员的句柄 (这部分逻辑不变)
+        positionHandle = GLES20.glGetAttribLocation(program, "vPosition")
         checkGlError("glGetAttribLocation vPosition")
         if (positionHandle == -1) { throw RuntimeException("Could not get attrib location for vPosition") }
 
-        alphaHandle = GLES20.glGetAttribLocation(program, "aAlpha") // 获取顶点 Alpha 属性句柄
+        alphaHandle = GLES20.glGetAttribLocation(program, "aAlpha")
         checkGlError("glGetAttribLocation aAlpha")
         if (alphaHandle == -1) { throw RuntimeException("Could not get attrib location for aAlpha") }
-        colorUniformHandle = GLES20.glGetUniformLocation(program, "uColor") // 获取统一颜色变量句柄
-        checkGlError("glGetUniformLocation uColor")
-        if (colorUniformHandle == -1) { // 检查句柄是否有效
-            throw RuntimeException("Could not get uniform location for uColor")
-        }
-        mvpMatrixHandle = GLES20.glGetUniformLocation(program, "uMVPMatrix") // 获取 MVP 矩阵句柄
-        checkGlError("glGetUniformLocation uMVPMatrix")
-        if (mvpMatrixHandle == -1) { // 检查句柄是否有效
-            throw RuntimeException("Could not get uniform location for uMVPMatrix")
-        }
 
-        // 初始化模型矩阵为单位矩阵
+        colorUniformHandle = GLES20.glGetUniformLocation(program, "uColor")
+        checkGlError("glGetUniformLocation uColor")
+        if (colorUniformHandle == -1) { throw RuntimeException("Could not get uniform location for uColor") }
+
+        mvpMatrixHandle = GLES20.glGetUniformLocation(program, "uMVPMatrix")
+        checkGlError("glGetUniformLocation uMVPMatrix")
+        if (mvpMatrixHandle == -1) { throw RuntimeException("Could not get uniform location for uMVPMatrix") }
+
+        // 初始化模型矩阵为单位矩阵 (这部分逻辑不变)
         Matrix.setIdentityM(modelMatrix, 0)
     }
 
-    // 更新动画进度
+    // --- Catmull-Rom 插值函数 ---
+    private fun interpolatePath(points: List<PointF>, numPointsPerSegment: Int): List<PointF> {
+        if (points.size < 2) return points // 至少需要两个点
+        if (numPointsPerSegment <= 0) return points // 插值点数需大于0
+
+        val interpolatedPoints = mutableListOf<PointF>()
+        val numSegments = points.size - 1
+
+        for (i in 0..numSegments) {
+            // 获取 Catmull-Rom 需要的四个控制点 P0, P1, P2, P3
+            // 对于边界情况，复制端点
+            val p0 = points[maxOf(0, i - 1)]
+            val p1 = points[i]
+            val p2 = points[minOf(points.size - 1, i + 1)]
+            val p3 = points[minOf(points.size - 1, i + 2)]
+
+            // 只在 P1 和 P2 之间插值 (即当前段)
+            // 对于第一个点 (i=0)，我们只添加 P1 (points[0])
+            if (i == 0) {
+                interpolatedPoints.add(p1)
+            }
+
+            // 对于 P1 和 P2 之间的段 (i < numSegments)
+            if (i < numSegments) {
+                for (j in 1..numPointsPerSegment) {
+                    val t = j.toFloat() / (numPointsPerSegment + 1) // t 从 0 到 1 (不包括 0，因为 P1 已添加)
+                    val tt = t * t
+                    val ttt = tt * t
+
+                    // Catmull-Rom 公式 (alpha = 0.5, 向心 Catmull-Rom)
+                    val q0 = -0.5f * ttt + tt - 0.5f * t
+                    val q1 = 1.5f * ttt - 2.5f * tt + 1.0f
+                    val q2 = -1.5f * ttt + 2.0f * tt + 0.5f * t
+                    val q3 = 0.5f * ttt - 0.5f * tt
+
+                    val tx = p0.x * q0 + p1.x * q1 + p2.x * q2 + p3.x * q3
+                    val ty = p0.y * q0 + p1.y * q1 + p2.y * q2 + p3.y * q3
+
+                    interpolatedPoints.add(PointF(tx, ty))
+                }
+                // 添加 P2 (points[i+1])，确保段的终点被包含
+                // 避免在最后一段重复添加最后一个点
+                if (i < numSegments -1) {
+                     interpolatedPoints.add(p2)
+                } else if (i == numSegments -1) {
+                    // 这是最后一段，确保最后一个原始点被精确添加
+                    interpolatedPoints.add(points.last())
+                }
+            }
+        }
+        // 移除可能因浮点精度产生的重复点 (可选，但建议)
+        return interpolatedPoints.distinctBy { Pair(it.x, it.y) }
+    }
+
+    // 更新动画进度 (这部分逻辑不变)
     fun update(deltaTime: Float) {
         animationProgress += animationSpeed * deltaTime
         if (animationProgress > 1.0f) {
@@ -193,11 +326,10 @@ class Comet {
         }
     }
 
-    // 对于静态弧形，不需要更新逻辑
-    // fun update() { ... } // 已移除
-
-    // 绘制彗星
+    // 绘制彗星 (这部分逻辑基本不变，除了检查 vertexCount)
     fun draw(viewProjectionMatrix: FloatArray) { // 传入视图-投影矩阵
+        if (vertexCount == 0) return // 如果没有顶点，则不绘制
+
         GLES20.glUseProgram(program) // 使用此 OpenGL 程序进行绘制
         checkGlError("glUseProgram") // 检查错误
 
@@ -254,7 +386,7 @@ class Comet {
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
         checkGlError("glUniformMatrix4fv - mvpMatrix")
 
-        // --- 绘制动画部分 ---
+        // --- 绘制动画部分 --- (这部分逻辑不变)
         // 计算需要绘制的顶点数量，从尾部开始
         // vertexCount 是总顶点数
         // animationProgress 从 0 到 1
@@ -283,7 +415,7 @@ class Comet {
         checkGlError("glDisableBlend")
     }
 
-    // 检查 OpenGL 错误
+    // 检查 OpenGL 错误 (这部分逻辑不变)
     private fun checkGlError(op: String) { // op: 操作名称，用于日志记录
         var error: Int
         while (GLES20.glGetError().also { error = it } != GLES20.GL_NO_ERROR) { // 循环检查错误直到没有错误
@@ -293,8 +425,10 @@ class Comet {
     }
 
     companion object {
-        // 定义每个顶点属性的分量数量
+        // 定义每个顶点属性的分量数量 (这部分逻辑不变)
         const val COORDS_PER_VERTEX_POS = 3 // 位置坐标数 (X, Y, Z)
         const val COORDS_PER_VERTEX_ALPHA = 1 // Alpha 分量数 (A)
     }
 }
+
+// 添加 Float.pow 扩展函数，如果项目中没有的话

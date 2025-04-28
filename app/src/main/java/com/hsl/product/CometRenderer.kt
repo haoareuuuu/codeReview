@@ -1,6 +1,7 @@
 package com.hsl.product
 
 import android.content.Context
+import android.graphics.PointF // 导入 PointF
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import javax.microedition.khronos.egl.EGLConfig
@@ -21,8 +22,17 @@ class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // 设置清屏颜色为黑色
 
-        // 在这里初始化 Comet 对象
-        comet = Comet()
+        // --- 创建示例路径 --- (你可以替换成你自己的坐标点)
+        val samplePath = listOf(
+            PointF(-0.8f, 0.0f),
+            PointF(-0.4f, 0.5f),
+            PointF(0.0f, 0.8f),
+            PointF(0.4f, 0.5f),
+            PointF(0.8f, 0.0f)
+        )
+
+        // 在这里初始化 Comet 对象，传入路径
+        comet = Comet(samplePath)
 
         // 初始化上一帧时间戳
         lastFrameTime = System.currentTimeMillis()
