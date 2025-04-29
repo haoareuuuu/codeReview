@@ -8,7 +8,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 // CometRenderer 类，实现 GLSurfaceView.Renderer 接口，负责渲染彗星
-class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
+class CometRenderer(private val context: Context, private val samplePath: List<PointF>? = null) : GLSurfaceView.Renderer {
 
     private lateinit var comet: Comet // 彗星对象
     private val projectionMatrix = FloatArray(16) // 投影矩阵
@@ -18,12 +18,15 @@ class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
     // --- 动画计时 ---
     private var lastFrameTime: Long = 0 // 上一帧的时间戳 (毫秒)
 
+    // --- 绘制进度控制 ---
+    private var drawProgress: Float = 0.0f // 绘制进度 (0.0 到 1.0)
+
     // 当 Surface 创建时调用
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // 设置清屏颜色为黑色
 
-        // --- 创建示例路径 --- (你可以替换成你自己的坐标点)
-        val samplePath = listOf(
+        // 使用从Activity传入的路径或默认路径
+        val path = samplePath ?: listOf(
             PointF(-0.8f, 0.0f),
             PointF(-0.4f, 0.5f),
             PointF(0.0f, 0.8f),
@@ -32,7 +35,7 @@ class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
         )
 
         // 在这里初始化 Comet 对象，传入路径
-        comet = Comet(samplePath)
+        comet = Comet(path)
 
         // 初始化上一帧时间戳
         lastFrameTime = System.currentTimeMillis()
@@ -81,8 +84,8 @@ class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
         // 清除屏幕
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        // 绘制彗星
-        comet.draw(viewProjectionMatrix)
+        // 绘制彗星，传入进度控制参数
+        comet.draw(viewProjectionMatrix, drawProgress)
 
         // 绘制后检查 OpenGL 错误
         var error = GLES20.glGetError()
@@ -93,6 +96,11 @@ class CometRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         // 请求重绘以实现动画
         // (在 MainActivity 中渲染模式设置为 RENDERMODE_CONTINUOUSLY)
+    }
+
+    // 设置绘制进度 (0.0 到 1.0)
+    fun setDrawProgress(progress: Float) {
+        drawProgress = progress.coerceIn(0.0f, 1.0f) // 确保值在有效范围内
     }
 
     companion object {

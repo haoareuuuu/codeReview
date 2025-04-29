@@ -326,8 +326,8 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         }
     }
 
-    // 绘制彗星 (这部分逻辑基本不变，除了检查 vertexCount)
-    fun draw(viewProjectionMatrix: FloatArray) { // 传入视图-投影矩阵
+    // 绘制彗星，接受外部传入的进度参数
+    fun draw(viewProjectionMatrix: FloatArray, progress: Float = -1f) { // 传入视图-投影矩阵和进度参数
         if (vertexCount == 0) return // 如果没有顶点，则不绘制
 
         GLES20.glUseProgram(program) // 使用此 OpenGL 程序进行绘制
@@ -344,7 +344,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         checkGlError("glEnable/BlendFunc")
 
-        // --- 设置顶点位置属性 --- 
+        // --- 设置顶点位置属性 ---
         vertexBuffer.position(0) // 将缓冲区指针定位到位置数据的开始
         GLES20.glVertexAttribPointer(
             positionHandle,          // 属性句柄
@@ -386,12 +386,15 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
         checkGlError("glUniformMatrix4fv - mvpMatrix")
 
-        // --- 绘制动画部分 --- (这部分逻辑不变)
+        // --- 绘制动画部分 ---
+        // 使用外部传入的进度参数或内部动画进度
+        val progressToUse = if (progress >= 0f) progress else animationProgress
+
         // 计算需要绘制的顶点数量，从尾部开始
         // vertexCount 是总顶点数
-        // animationProgress 从 0 到 1
-        // 我们想绘制最后 (animationProgress * vertexCount) 个顶点
-        val verticesToDraw = (animationProgress * vertexCount).toInt()
+        // progressToUse 从 0 到 1
+        // 我们想绘制最后 (progressToUse * vertexCount) 个顶点
+        val verticesToDraw = (progressToUse * vertexCount).toInt()
         // 确保顶点数是偶数，因为我们使用 TRIANGLE_STRIP，每段2个顶点
         val count = (verticesToDraw / 2) * 2
         // 计算起始绘制的顶点索引 (从尾部开始)
