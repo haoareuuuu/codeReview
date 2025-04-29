@@ -64,7 +64,6 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     private val animationSpeed = 0.2f // 动画速度 (每秒进度增加量)
 
     // --- 变换矩阵 --- (用于定位和变换彗星)
-    private val modelMatrix = FloatArray(16) // 模型矩阵，定义对象在世界空间中的位置和方向
     private val mvpMatrix = FloatArray(16) // 模型-视图-投影 矩阵，最终变换矩阵
 
     // --- 插值参数 ---
@@ -260,8 +259,6 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         checkGlError("glGetUniformLocation uMVPMatrix")
         if (mvpMatrixHandle == -1) { throw RuntimeException("Could not get uniform location for uMVPMatrix") }
 
-        // 初始化模型矩阵为单位矩阵 (这部分逻辑不变)
-        Matrix.setIdentityM(modelMatrix, 0)
     }
 
     // --- Catmull-Rom 插值函数 ---
@@ -327,7 +324,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     }
 
     // 绘制彗星，接受外部传入的进度参数
-    fun draw(viewProjectionMatrix: FloatArray, progress: Float = -1f) { // 传入视图-投影矩阵和进度参数
+    fun draw(projectionMatrix: FloatArray, progress: Float = -1f) { // 传入投影矩阵和进度参数
         if (vertexCount == 0) return // 如果没有顶点，则不绘制
 
         GLES20.glUseProgram(program) // 使用此 OpenGL 程序进行绘制
@@ -376,14 +373,9 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         GLES20.glUniform4fv(colorUniformHandle, 1, arcColor, 0)
         checkGlError("glUniform4fv - color")
 
-        // 设置模型矩阵（目前为单位矩阵，弧形定义在世界空间中）
-        // Matrix.setIdentityM(modelMatrix, 0) // 模型矩阵默认为单位矩阵，如果不需要可以移除
-
-        // 计算最终的变换矩阵 (模型 * 视图 * 投影)
-        Matrix.multiplyMM(mvpMatrix, 0, viewProjectionMatrix, 0, modelMatrix, 0)
-
-        // 将变换矩阵传递给着色器
-        GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
+        // 设置 MVP 矩阵 (模型-视图-投影)
+        // 对于简单的2D场景，我们只使用投影矩阵
+        GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, projectionMatrix, 0)
         checkGlError("glUniformMatrix4fv - mvpMatrix")
 
         // --- 绘制动画部分 ---

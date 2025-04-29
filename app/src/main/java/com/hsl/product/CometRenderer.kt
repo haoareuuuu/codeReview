@@ -12,8 +12,6 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
 
     private lateinit var comet: Comet // 彗星对象
     private val projectionMatrix = FloatArray(16) // 投影矩阵
-    private val viewMatrix = FloatArray(16) // 视图矩阵
-    private val viewProjectionMatrix = FloatArray(16) // 视图-投影 矩阵
 
     // --- 动画计时 ---
     private var lastFrameTime: Long = 0 // 上一帧的时间戳 (毫秒)
@@ -61,14 +59,7 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
             android.opengl.Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f)
         }
 
-        // 设置视图矩阵（相机位置）
-        // eyeX, eyeY, eyeZ: 相机位置
-        // centerX, centerY, centerZ: 目标观察点
-        // upX, upY, upZ: 相机朝上方向
-        android.opengl.Matrix.setLookAtM(viewMatrix, 0, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1.0f, 0.0f)
-
-        // 计算视图-投影矩阵
-        android.opengl.Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+        // 对于2D场景，我们不需要视图矩阵，直接使用投影矩阵
     }
 
     // 每帧绘制时调用
@@ -85,7 +76,7 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // 绘制彗星，传入进度控制参数
-        comet.draw(viewProjectionMatrix, drawProgress)
+        comet.draw(projectionMatrix, drawProgress)
 
         // 绘制后检查 OpenGL 错误
         var error = GLES20.glGetError()
