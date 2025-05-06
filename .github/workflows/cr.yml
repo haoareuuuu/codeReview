@@ -25,12 +25,12 @@ jobs:
         uses: hustcer/deepseek-review@main
         with:
           max-length: 50000
-          # Choose the model that best fits your needs
-          model: 'deepseek-ai/DeepSeek-V3'                # SiliconFlow's DeepSeek V3 model
-          # model: 'deepseek-ai/DeepSeek-R1'              # SiliconFlow's DeepSeek R1 model
-          base-url: 'https://api.siliconflow.cn/v1'       # SiliconFlow's API base URL
+          # Using Deepseek official API
+          model: 'deepseek-coder'                        # Deepseek official model
+          # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
+          base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
           # Store the chat token in GitHub Secrets, don't expose it in the workflow file
-          chat-token: ${{ secrets.CHAT_TOKEN }}
+          chat-token: ${{ secrets.DEEP_SEEK_TOKEN }}
           sys-prompt: >
             As a senior Android developer, perform comprehensive code review with focus on:
 
