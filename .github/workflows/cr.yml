@@ -54,7 +54,7 @@ jobs:
           # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
           base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
           # Store the chat token in GitHub Secrets, don't expose it in the workflow file
-          chat-token: ${{ secrets.DEEPSEEK_TOKEN }}
+          chat-token: ${{ secrets.CHAT_TOKEN }}
           sys-prompt: >
             As a senior Android developer, perform comprehensive code review with focus on:
 
