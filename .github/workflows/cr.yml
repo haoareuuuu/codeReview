@@ -34,14 +34,14 @@ jobs:
           fetch-depth: 0  # 获取完整历史以便比较变更
           ref: ${{ github.event.pull_request.head.sha }}  # 对于PR，检出PR的代码
           persist-credentials: false  # 不保存凭证
-
+          
       # 首先检出代码 - Push事件
       - name: Checkout Push code
         if: github.event_name == 'push'
         uses: actions/checkout@v3
         with:
           fetch-depth: 0  # 获取完整历史
-
+          
       # 然后进行代码审查 - PR事件
       - name: DeepSeek Code Review for PR
         if: github.event_name == 'pull_request_target'
@@ -138,7 +138,7 @@ jobs:
 
               **Overall Quality:** {{rating}}
             ```
-
+          
       # 然后进行代码审查 - Push事件
       - name: DeepSeek Code Review for Push
         if: github.event_name == 'push'
@@ -150,7 +150,7 @@ jobs:
           # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
           base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
           # Store the chat token in GitHub Secrets, don't expose it in the workflow file
-          chat-token: ${{ secrets.DEEP_SEEK_TOKEN }}
+          chat-token: ${{ secrets.CHAT_TOKEN }}
           sys-prompt: >
             As a senior Android developer, perform comprehensive code review with focus on:
 
