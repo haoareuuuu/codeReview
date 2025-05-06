@@ -3,12 +3,17 @@
 
 name: Android Code Review
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened      # Triggers when a PR is opened
       - reopened    # Triggers when a PR is reopened
       - synchronize # Triggers when a commit is pushed to the PR
       - labeled     # Triggers when a label is added to the PR
+  # Also trigger on push to main branch for testing
+  push:
+    branches:
+      - main
+      - master
 
 # fix: GraphQL: Resource not accessible by integration (addComment) error
 permissions:
@@ -18,8 +23,8 @@ jobs:
   setup-deepseek-review:
     runs-on: ubuntu-latest
     name: Code Review
-    # Make sure the code review happens only when the PR has the label 'ai review'
-    if: contains(github.event.pull_request.labels.*.name, 'ai review')
+    # Run on all PRs without label restriction
+    # if: contains(github.event.pull_request.labels.*.name, 'ai review')
     steps:
       - name: DeepSeek Code Review
         uses: hustcer/deepseek-review@main
