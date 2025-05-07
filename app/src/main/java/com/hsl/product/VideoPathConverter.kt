@@ -160,6 +160,7 @@ class VideoPathConverter {
             result.add(inputPoints.first().y)
 
             for (step in 1..totalSteps) {
+
                 val globalT = step.toFloat() / totalSteps // 全局参数 [0, 1]
                 val targetSegmentIndex = (globalT * numSegments).toInt().coerceAtMost(numSegments - 1)
                 val segmentTStart = targetSegmentIndex.toFloat() / numSegments
