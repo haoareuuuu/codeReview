@@ -20,13 +20,12 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
 
     // --- 着色器 --- (顶点着色器传递位置，片段着色器设置颜色)
     private val vertexShaderCode = """
-        uniform mat4 uMVPMatrix; // 模型-视图-投影 矩阵
         attribute vec4 vPosition; // 顶点位置属性 (x, y, z, w)
         attribute float aAlpha;   // 顶点透明度属性
         varying float vAlpha;     // 传递给片段着色器的透明度
         void main() {
-            // 计算最终的顶点位置
-            gl_Position = uMVPMatrix * vPosition;
+            // 直接使用顶点位置，不需要矩阵变换
+            gl_Position = vPosition;
             // 将顶点透明度传递给片段着色器
             vAlpha = aAlpha;
         }
@@ -47,7 +46,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     private var positionHandle: Int = 0 // 顶点位置属性句柄
     private var alphaHandle: Int = 0    // 顶点透明度属性句柄
     private var colorUniformHandle: Int = 0 // 统一颜色变量句柄
-    private var mvpMatrixHandle: Int = 0 // MVP 矩阵句柄
+    // 不再需要矩阵句柄
 
     // --- 顶点数据 --- (弧形的顶点)
     private var vertexData: FloatArray // 改为 var 以便在 init 中赋值
@@ -64,7 +63,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     private val animationSpeed = 0.2f // 动画速度 (每秒进度增加量)
 
     // --- 变换矩阵 --- (用于定位和变换彗星)
-    private val mvpMatrix = FloatArray(16) // 模型-视图-投影 矩阵，最终变换矩阵
+    // 不再需要变换矩阵
 
     // --- 插值参数 ---
     private val numInterpolationPointsPerSegment = 30 // 每个原始线段插值点的数量 (增加点数以提高平滑度)
@@ -255,9 +254,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         checkGlError("glGetUniformLocation uColor")
         if (colorUniformHandle == -1) { throw RuntimeException("Could not get uniform location for uColor") }
 
-        mvpMatrixHandle = GLES20.glGetUniformLocation(program, "uMVPMatrix")
-        checkGlError("glGetUniformLocation uMVPMatrix")
-        if (mvpMatrixHandle == -1) { throw RuntimeException("Could not get uniform location for uMVPMatrix") }
+        // 不再需要获取矩阵句柄
 
     }
 
@@ -324,14 +321,14 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     }
 
     // 绘制彗星，接受外部传入的进度参数
-    fun draw(projectionMatrix: FloatArray, progress: Float = -1f) { // 传入投影矩阵和进度参数
+    fun draw(progress: Float = -1f) { // 只传入进度参数，不再需要投影矩阵
         if (vertexCount == 0) return // 如果没有顶点，则不绘制
 
         GLES20.glUseProgram(program) // 使用此 OpenGL 程序进行绘制
         checkGlError("glUseProgram") // 检查错误
 
         // 在继续之前检查句柄是否有效
-        if (positionHandle == -1 || alphaHandle == -1 || colorUniformHandle == -1 || mvpMatrixHandle == -1) {
+        if (positionHandle == -1 || alphaHandle == -1 || colorUniformHandle == -1) {
             android.util.Log.e("Comet", "Invalid shader handles!") // 打印错误日志
             return // 如果句柄无效则不绘制
         }
@@ -373,10 +370,7 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         GLES20.glUniform4fv(colorUniformHandle, 1, arcColor, 0)
         checkGlError("glUniform4fv - color")
 
-        // 设置 MVP 矩阵 (模型-视图-投影)
-        // 对于简单的2D场景，我们只使用投影矩阵
-        GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, projectionMatrix, 0)
-        checkGlError("glUniformMatrix4fv - mvpMatrix")
+        // 不再需要设置矩阵，直接使用顶点位置
 
         // --- 绘制动画部分 ---
         // 使用外部传入的进度参数或内部动画进度
