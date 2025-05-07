@@ -9,6 +9,11 @@ on:
       - reopened    # Triggers when a PR is reopened
       - synchronize # Triggers when a commit is pushed to the PR
       - labeled     # Triggers when a label is added to the PR
+  # Also trigger on push to main branch for testing
+  push:
+    branches:
+      - main
+      - master
 
 # fix: GraphQL: Resource not accessible by integration (addComment) error
 permissions:
@@ -18,99 +23,48 @@ jobs:
   setup-deepseek-review:
     runs-on: ubuntu-latest
     name: Code Review
-    # Make sure the code review happens only when the PR has the label 'ai review'
-    if: contains(github.event.pull_request.labels.*.name, 'ai review')
+    # Run on all PRs without label restriction
+    # if: contains(github.event.pull_request.labels.*.name, 'ai review')
+    env:
+      CHAT_TOKEN: ${{ secrets.DEEPSEEK_TOKEN }} # 设置环境变量，这样Action可以自动使用它
     steps:
-      - name: DeepSeek Code Review
+      # 首先检出代码 - PR事件
+      - name: Checkout PR code
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 获取完整历史以便比较变更
+          ref: ${{ github.event.pull_request.head.sha }}  # 对于PR，检出PR的代码
+          persist-credentials: false  # 不保存凭证
+          
+      # 首先检出代码 - Push事件
+      - name: Checkout Push code
+        if: github.event_name == 'push'
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 获取完整历史
+          
+      # 方法1：使用Action并通过环境变量传递令牌
+      - name: DeepSeek Code Review for PR (Method 1)
+        if: github.event_name == 'pull_request_target'
         uses: hustcer/deepseek-review@main
         with:
+          pr-number: ${{ github.event.pull_request.number }}
           max-length: 50000
-          # Using Deepseek official API
-          model: 'deepseek-coder'                        # Deepseek official model
-          # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
-          base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
-          # Store the chat token in GitHub Secrets, don't expose it in the workflow file
-          chat-token: ${{ secrets.DEEP_SEEK_TOKEN }}
+          model: 'deepseek-coder'
+          base-url: 'https://api.deepseek.com/v1'
+          # 不需要显式设置chat-token，它会自动使用环境变量CHAT_TOKEN
           sys-prompt: >
-            As a senior Android developer, perform comprehensive code review with focus on:
-
-            ### 1. Core Requirements:
-            - Validate Android best practices and compatibility
-            - Check Kotlin/Java code quality and style
-            - Verify UI implementation (XML layouts or Jetpack Compose)
-            - Assess architecture patterns (MVVM, MVI, Clean Architecture)
-
-            ### 2. Security Analysis:
-            - Input validation and sanitization
-            - Secure data storage practices
-            - Permission handling and privacy concerns
-            - Network security and API usage
-
-            ### 3. Performance Optimization:
-            - UI rendering efficiency
-            - Memory management and leaks
-            - Background processing and threading
-            - Resource usage optimization
-
-            ### 4. Code Quality:
-            - Readability and maintainability
-            - Proper error handling
-            - Test coverage and testability
-            - Documentation quality
-
-            **Rules:**
-            - Focus on modern Android development practices
-            - Highlight potential security vulnerabilities
-            - Suggest performance optimizations
-            - Provide constructive feedback on architecture
-            - Consider both Kotlin and Java code quality
-
-            **Required output structure:**
-            #### Code Analysis
-            - Key observations
-
-            #### Security Review
-            - Vulnerability findings
-
-            #### Performance Suggestions
-            - Performance improvements
-
-            #### Code Quality
-            - Maintainability and readability improvements
-
-            **Overall Quality:** Rating (1-5)
-
-            ```yaml
-            checklist:
-              - Compatibility: ["Android API levels", "Device compatibility", "Library dependencies"]
-              - Security: ["Input validation", "Data storage", "Permission handling", "Network security"]
-              - Performance: ["UI rendering", "Memory management", "Background processing", "Resource usage"]
-              - Quality: ["Readability", "Error handling", "Testing", "Documentation"]
-
-            examples:
-              - issue: "❗ Unvalidated user input in Activity (security risk)"
-              - issue: "⚠️ Storing sensitive data in SharedPreferences without encryption"
-              - suggestion: "Consider using viewModelScope instead of GlobalScope for coroutines"
-              - suggestion: "Replace findViewById with view binding for better type safety"
-
-            response_template: |
-              #### Code Analysis
-              - {{observations}}
-
-              {{#security_issues}}
-              #### Security Review
-              - {{security_issues}}
-              {{/security_issues}}
-
-              {{#performance_issues}}
-              #### Performance Suggestions
-              - {{performance_issues}}
-              {{/performance_issues}}
-
-              {{#quality_issues}}
-              #### Code Quality
-              - {{quality_issues}}
-              {{/quality_issues}}
-
-              **Overall Quality:** {{rating}}
-            ```
+            As a senior Android developer, perform comprehensive code review with focus on Android best practices, security, performance, and code quality.
+          
+      # 方法2：直接使用命令行并通过参数传递令牌
+      - name: DeepSeek Code Review for Push (Method 2)
+        if: github.event_name == 'push'
+        run: |
+          npm install -g @hustcer/deepseek-review
+          deepseek-review \
+            --max-length 50000 \
+            --model 'deepseek-coder' \
+            --base-url 'https://api.deepseek.com/v1' \
+            --token '${{ secrets.DEEPSEEK_TOKEN }}' \
+            --sys-prompt "As a senior Android developer, perform comprehensive code review with focus on Android best practices, security, performance, and code quality."

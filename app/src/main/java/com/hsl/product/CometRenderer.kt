@@ -76,7 +76,7 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // 绘制彗星，传入进度控制参数
-        comet.draw(projectionMatrix, drawProgress)
+        comet.draw(drawProgress)
 
         // 绘制后检查 OpenGL 错误
         var error = GLES20.glGetError()
