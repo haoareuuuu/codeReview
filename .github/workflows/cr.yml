@@ -58,7 +58,7 @@ jobs:
           # Store the chat token in GitHub Secrets, don't expose it in the workflow file
           chat-token: ${{ secrets.CHAT_TOKEN }}
           sys-prompt: >
-            As a senior Android developer, perform comprehensive code review with focus on:
+            As a senior Android developer, perform comprehensive code review with focus on,and you should use chinese to response,Each problem point indicates the specific file name and line number:
 
             ### 1. Core Requirements:
             - Validate Android best practices and compatibility
@@ -154,7 +154,7 @@ jobs:
           # Store the chat token in GitHub Secrets, don't expose it in the workflow file
           chat-token: ${{ secrets.CHAT_TOKEN }}
           sys-prompt: >
-            As a senior Android developer, perform comprehensive code review with focus on:
+            As a senior Android developer, perform comprehensive code review with focus on,and you should use chinese to response,Each problem point indicates the specific file name and line number:
 
             ### 1. Core Requirements:
             - Validate Android best practices and compatibility
