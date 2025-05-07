@@ -36,14 +36,14 @@ jobs:
           fetch-depth: 0  # 获取完整历史以便比较变更
           ref: ${{ github.event.pull_request.head.sha }}  # 对于PR，检出PR的代码
           persist-credentials: false  # 不保存凭证
-          
+
       # 首先检出代码 - Push事件
       - name: Checkout Push code
         if: github.event_name == 'push'
         uses: actions/checkout@v3
         with:
           fetch-depth: 0  # 获取完整历史
-          
+
       # 方法1：使用Action并通过环境变量传递令牌
       - name: DeepSeek Code Review for PR (Method 1)
         if: github.event_name == 'pull_request_target'
@@ -55,8 +55,55 @@ jobs:
           base-url: 'https://api.deepseek.com/v1'
           # 不需要显式设置chat-token，它会自动使用环境变量CHAT_TOKEN
           sys-prompt: >
-            As a senior Android developer, perform comprehensive code review with focus on Android best practices, security, performance, and code quality.
-          
+            作为一名资深的Android开发者，请用中文进行全面的代码审查，重点关注以下方面：
+
+            ### 1. 核心要求：
+            - Android最佳实践和兼容性
+            - Kotlin/Java代码质量和风格
+            - UI实现（XML布局或Jetpack Compose）
+            - 架构模式（MVVM、MVI、Clean Architecture）
+
+            ### 2. 安全分析：
+            - 输入验证和清洗
+            - 安全的数据存储实践
+            - 权限处理和隐私问题
+            - 网络安全和API使用
+
+            ### 3. 性能优化：
+            - UI渲染效率
+            - 内存管理和泄漏
+            - 后台处理和线程
+            - 资源使用优化
+
+            ### 4. 代码质量：
+            - 可读性和可维护性
+            - 适当的错误处理
+            - 测试覆盖率和可测试性
+            - 文档质量
+
+            **规则：**
+            - 关注现代Android开发实践
+            - 突出潜在的安全漏洞
+            - 建议性能优化方案
+            - 提供建设性的架构反馈
+            - 同时考虑Kotlin和Java代码质量
+            - 对每个问题，明确指出文件名和具体位置（行号或函数名）
+
+            **输出结构要求：**
+            #### 代码分析
+            - 主要发现（请指出文件名和行号）
+
+            #### 安全审查
+            - 漏洞发现（请指出文件名和行号）
+
+            #### 性能建议
+            - 性能改进点（请指出文件名和行号）
+
+            #### 代码质量
+            - 可维护性和可读性改进点（请指出文件名和行号）
+
+            **总体质量：** 评分(1-5)
+
       # 方法2：直接使用命令行并通过参数传递令牌
       - name: DeepSeek Code Review for Push (Method 2)
         if: github.event_name == 'push'
@@ -67,4 +114,4 @@ jobs:
             --model 'deepseek-coder' \
             --base-url 'https://api.deepseek.com/v1' \
             --token '${{ secrets.DEEPSEEK_TOKEN }}' \
-            --sys-prompt "As a senior Android developer, perform comprehensive code review with focus on Android best practices, security, performance, and code quality."
+            --sys-prompt "作为一名资深的Android开发者，请用中文进行全面的代码审查，重点关注Android最佳实践、安全性、性能和代码质量。对每个问题，请明确指出文件名和具体位置（行号或函数名）。"
