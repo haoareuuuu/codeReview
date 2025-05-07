@@ -19,6 +19,9 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
     // --- 绘制进度控制 ---
     private var drawProgress: Float = 0.0f // 绘制进度 (0.0 到 1.0)
 
+    // --- 坐标系控制 ---
+    private var showCoordinateSystem: Boolean = true // 是否显示坐标系
+
     // 当 Surface 创建时调用
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // 设置清屏颜色为黑色
@@ -35,29 +38,25 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
         // 在这里初始化 Comet 对象，传入路径
         comet = Comet(path)
 
+        // 设置坐标系的初始显示状态
+        comet.setCoordinateSystemVisible(showCoordinateSystem)
+
         // 初始化上一帧时间戳
         lastFrameTime = System.currentTimeMillis()
     }
 
     // 当 Surface 尺寸改变时调用
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        GLES20.glViewport(0, 0, width, height) // 设置视口大小
+        // 计算保持宽高比例为1:1的视口大小
+        val size = Math.min(width, height)
+        val x = (width - size) / 2
+        val y = (height - size) / 2
 
-        // 计算宽高比
-        val aspectRatio = if (width > height) {
-            width.toFloat() / height.toFloat()
-        } else {
-            height.toFloat() / width.toFloat()
-        }
+        // 设置正方形视口，确保X轴和Y轴的比例相同
+        GLES20.glViewport(x, y, size, size)
 
-        // 设置投影矩阵
-        if (width > height) {
-            // 横屏
-            android.opengl.Matrix.orthoM(projectionMatrix, 0, -aspectRatio, aspectRatio, -1f, 1f, -1f, 1f)
-        } else {
-            // 竖屏或方形
-            android.opengl.Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f)
-        }
+        // 使用正交投影，确保X轴和Y轴的坐标范围相同
+        android.opengl.Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -1f, 1f, -1f, 1f)
 
         // 对于2D场景，我们不需要视图矩阵，直接使用投影矩阵
     }
@@ -92,6 +91,20 @@ class CometRenderer(private val context: Context, private val samplePath: List<P
     // 设置绘制进度 (0.0 到 1.0)
     fun setDrawProgress(progress: Float) {
         drawProgress = progress.coerceIn(0.0f, 1.0f) // 确保值在有效范围内
+    }
+
+    // 设置坐标系的显示状态
+    fun setCoordinateSystemVisible(visible: Boolean) {
+        showCoordinateSystem = visible
+        // 如果comet已经初始化，则更新其坐标系显示状态
+        if (::comet.isInitialized) {
+            comet.setCoordinateSystemVisible(visible)
+        }
+    }
+
+    // 获取坐标系的显示状态
+    fun isCoordinateSystemVisible(): Boolean {
+        return showCoordinateSystem
     }
 
     companion object {
