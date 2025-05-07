@@ -26,7 +26,7 @@ jobs:
     # Run on all PRs without label restriction
     # if: contains(github.event.pull_request.labels.*.name, 'ai review')
     env:
-      CHAT_TOKEN: ${{ secrets.DEEPSEEK_TOKEN }} # 设置环境变量，这样Action可以自动使用它
+      CHAT_TOKEN: ${{ secrets.DEEPSEEK_TOKEN }} # 设置环境变量
     steps:
       # 首先检出代码 - PR事件
       - name: Checkout PR code
@@ -44,74 +44,195 @@ jobs:
         with:
           fetch-depth: 0  # 获取完整历史
 
-      # 方法1：使用Action并通过环境变量传递令牌
-      - name: DeepSeek Code Review for PR (Method 1)
+      # 然后进行代码审查 - PR事件
+      - name: DeepSeek Code Review for PR
         if: github.event_name == 'pull_request_target'
         uses: hustcer/deepseek-review@main
         with:
           pr-number: ${{ github.event.pull_request.number }}
           max-length: 50000
-          model: 'deepseek-coder'
-          base-url: 'https://api.deepseek.com/v1'
-          # 不需要显式设置chat-token，它会自动使用环境变量CHAT_TOKEN
+          # Using Deepseek official API
+          model: 'deepseek-coder'                        # Deepseek official model
+          # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
+          base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
+          # Store the chat token in GitHub Secrets, don't expose it in the workflow file
+          chat-token: ${{ secrets.CHAT_TOKEN }}
           sys-prompt: >
-            作为一名资深的Android开发者，请用中文进行全面的代码审查，重点关注以下方面：
+            As a senior Android developer, perform comprehensive code review with focus on:
 
-            ### 1. 核心要求：
-            - Android最佳实践和兼容性
-            - Kotlin/Java代码质量和风格
-            - UI实现（XML布局或Jetpack Compose）
-            - 架构模式（MVVM、MVI、Clean Architecture）
+            ### 1. Core Requirements:
+            - Validate Android best practices and compatibility
+            - Check Kotlin/Java code quality and style
+            - Verify UI implementation (XML layouts or Jetpack Compose)
+            - Assess architecture patterns (MVVM, MVI, Clean Architecture)
 
-            ### 2. 安全分析：
-            - 输入验证和清洗
-            - 安全的数据存储实践
-            - 权限处理和隐私问题
-            - 网络安全和API使用
+            ### 2. Security Analysis:
+            - Input validation and sanitization
+            - Secure data storage practices
+            - Permission handling and privacy concerns
+            - Network security and API usage
 
-            ### 3. 性能优化：
-            - UI渲染效率
-            - 内存管理和泄漏
-            - 后台处理和线程
-            - 资源使用优化
+            ### 3. Performance Optimization:
+            - UI rendering efficiency
+            - Memory management and leaks
+            - Background processing and threading
+            - Resource usage optimization
 
-            ### 4. 代码质量：
-            - 可读性和可维护性
-            - 适当的错误处理
-            - 测试覆盖率和可测试性
-            - 文档质量
+            ### 4. Code Quality:
+            - Readability and maintainability
+            - Proper error handling
+            - Test coverage and testability
+            - Documentation quality
 
-            **规则：**
-            - 关注现代Android开发实践
-            - 突出潜在的安全漏洞
-            - 建议性能优化方案
-            - 提供建设性的架构反馈
-            - 同时考虑Kotlin和Java代码质量
-            - 对每个问题，明确指出文件名和具体位置（行号或函数名）
+            **Rules:**
+            - Focus on modern Android development practices
+            - Highlight potential security vulnerabilities
+            - Suggest performance optimizations
+            - Provide constructive feedback on architecture
+            - Consider both Kotlin and Java code quality
 
-            **输出结构要求：**
-            #### 代码分析
-            - 主要发现（请指出文件名和行号）
+            **Required output structure:**
+            #### Code Analysis
+            - Key observations
 
-            #### 安全审查
-            - 漏洞发现（请指出文件名和行号）
+            #### Security Review
+            - Vulnerability findings
 
-            #### 性能建议
-            - 性能改进点（请指出文件名和行号）
+            #### Performance Suggestions
+            - Performance improvements
 
-            #### 代码质量
-            - 可维护性和可读性改进点（请指出文件名和行号）
+            #### Code Quality
+            - Maintainability and readability improvements
 
-            **总体质量：** 评分(1-5)
+            **Overall Quality:** Rating (1-5)
 
-      # 方法2：直接使用命令行并通过参数传递令牌
-      - name: DeepSeek Code Review for Push (Method 2)
+            ```yaml
+            checklist:
+              - Compatibility: ["Android API levels", "Device compatibility", "Library dependencies"]
+              - Security: ["Input validation", "Data storage", "Permission handling", "Network security"]
+              - Performance: ["UI rendering", "Memory management", "Background processing", "Resource usage"]
+              - Quality: ["Readability", "Error handling", "Testing", "Documentation"]
+
+            examples:
+              - issue: "❗ Unvalidated user input in Activity (security risk)"
+              - issue: "⚠️ Storing sensitive data in SharedPreferences without encryption"
+              - suggestion: "Consider using viewModelScope instead of GlobalScope for coroutines"
+              - suggestion: "Replace findViewById with view binding for better type safety"
+
+            response_template: |
+              #### Code Analysis
+              - {{observations}}
+
+              {{#security_issues}}
+              #### Security Review
+              - {{security_issues}}
+              {{/security_issues}}
+
+              {{#performance_issues}}
+              #### Performance Suggestions
+              - {{performance_issues}}
+              {{/performance_issues}}
+
+              {{#quality_issues}}
+              #### Code Quality
+              - {{quality_issues}}
+              {{/quality_issues}}
+
+              **Overall Quality:** {{rating}}
+            ```
+
+      # 然后进行代码审查 - Push事件
+      - name: DeepSeek Code Review for Push
         if: github.event_name == 'push'
-        run: |
-          npm install -g @hustcer/deepseek-review
-          deepseek-review \
-            --max-length 50000 \
-            --model 'deepseek-coder' \
-            --base-url 'https://api.deepseek.com/v1' \
-            --token '${{ secrets.DEEPSEEK_TOKEN }}' \
-            --sys-prompt "作为一名资深的Android开发者，请用中文进行全面的代码审查，重点关注Android最佳实践、安全性、性能和代码质量。对每个问题，请明确指出文件名和具体位置（行号或函数名）。"
+        uses: hustcer/deepseek-review@main
+        with:
+          max-length: 50000
+          # Using Deepseek official API
+          model: 'deepseek-coder'                        # Deepseek official model
+          # Other model options: 'deepseek-chat', 'deepseek-coder-instruct', etc.
+          base-url: 'https://api.deepseek.com/v1'        # Deepseek official API base URL
+          # Store the chat token in GitHub Secrets, don't expose it in the workflow file
+          chat-token: ${{ secrets.CHAT_TOKEN }}
+          sys-prompt: >
+            As a senior Android developer, perform comprehensive code review with focus on:
+
+            ### 1. Core Requirements:
+            - Validate Android best practices and compatibility
+            - Check Kotlin/Java code quality and style
+            - Verify UI implementation (XML layouts or Jetpack Compose)
+            - Assess architecture patterns (MVVM, MVI, Clean Architecture)
+
+            ### 2. Security Analysis:
+            - Input validation and sanitization
+            - Secure data storage practices
+            - Permission handling and privacy concerns
+            - Network security and API usage
+
+            ### 3. Performance Optimization:
+            - UI rendering efficiency
+            - Memory management and leaks
+            - Background processing and threading
+            - Resource usage optimization
+
+            ### 4. Code Quality:
+            - Readability and maintainability
+            - Proper error handling
+            - Test coverage and testability
+            - Documentation quality
+
+            **Rules:**
+            - Focus on modern Android development practices
+            - Highlight potential security vulnerabilities
+            - Suggest performance optimizations
+            - Provide constructive feedback on architecture
+            - Consider both Kotlin and Java code quality
+
+            **Required output structure:**
+            #### Code Analysis
+            - Key observations
+
+            #### Security Review
+            - Vulnerability findings
+
+            #### Performance Suggestions
+            - Performance improvements
+
+            #### Code Quality
+            - Maintainability and readability improvements
+
+            **Overall Quality:** Rating (1-5)
+
+            ```yaml
+            checklist:
+              - Compatibility: ["Android API levels", "Device compatibility", "Library dependencies"]
+              - Security: ["Input validation", "Data storage", "Permission handling", "Network security"]
+              - Performance: ["UI rendering", "Memory management", "Background processing", "Resource usage"]
+              - Quality: ["Readability", "Error handling", "Testing", "Documentation"]
+
+            examples:
+              - issue: "❗ Unvalidated user input in Activity (security risk)"
+              - issue: "⚠️ Storing sensitive data in SharedPreferences without encryption"
+              - suggestion: "Consider using viewModelScope instead of GlobalScope for coroutines"
+              - suggestion: "Replace findViewById with view binding for better type safety"
+
+            response_template: |
+              #### Code Analysis
+              - {{observations}}
+
+              {{#security_issues}}
+              #### Security Review
+              - {{security_issues}}
+              {{/security_issues}}
+
+              {{#performance_issues}}
+              #### Performance Suggestions
+              - {{performance_issues}}
+              {{/performance_issues}}
+
+              {{#quality_issues}}
+              #### Code Quality
+              - {{quality_issues}}
+              {{/quality_issues}}
+
+              **Overall Quality:** {{rating}}
+            ```
