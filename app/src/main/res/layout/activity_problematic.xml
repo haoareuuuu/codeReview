@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 问题1: 使用嵌套布局，可能导致性能问题 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".ProblematicActivity">
+
+    <!-- 问题2: 硬编码字符串，应该使用strings.xml -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Login Form"
+        android:textSize="24sp"
+        android:gravity="center"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 问题3: 嵌套布局 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 问题4: 没有输入验证 -->
+        <EditText
+            android:id="@+id/usernameInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Username"
+            android:inputType="text"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 问题5: 没有密码输入类型 -->
+        <EditText
+            android:id="@+id/passwordInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Password"
+            android:inputType="text"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 问题6: 硬编码文本 -->
+        <Button
+            android:id="@+id/loginButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Login"
+            android:layout_marginBottom="24dp" />
+
+    </LinearLayout>
+
+    <!-- 问题7: 硬编码尺寸 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#EEEEEE"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Data Section"
+            android:textSize="20sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 问题8: 硬编码文本 -->
+        <Button
+            android:id="@+id/fetchDataButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Fetch Data"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 问题9: 硬编码文本 -->
+        <Button
+            android:id="@+id/searchButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Search"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 问题10: 固定高度，不适应内容 -->
+        <TextView
+            android:id="@+id/resultTextView"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:background="#FFFFFF"
+            android:padding="8dp"
+            android:text="Results will appear here"
+            android:textColor="#666666" />
+
+    </LinearLayout>
+
+    <!-- 问题11: 使用绝对位置，不响应式 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- 问题12: 硬编码颜色 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:text="Version 1.0"
+            android:textColor="#FF0000"
+            android:layout_margin="16dp" />
+
+    </FrameLayout>
+
+</LinearLayout>

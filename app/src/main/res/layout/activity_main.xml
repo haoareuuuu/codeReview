@@ -5,10 +5,22 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <android.opengl.GLSurfaceView
-        android:id="@+id/glSurfaceView"
+    <!-- 使用FrameLayout将GLSurfaceView和坐标标注View叠加 -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent">
+
+        <android.opengl.GLSurfaceView
+            android:id="@+id/glSurfaceView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 坐标刻度标注View -->
+        <com.hsl.product.CoordinateLabelsView
+            android:id="@+id/coordinateLabelsView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
 
     <SeekBar
         android:id="@+id/progressSeekBar"
@@ -30,5 +42,18 @@
         android:textColor="#FFFFFF"
         android:background="#80000000"
         android:padding="4dp" />
+
+    <Button
+        android:id="@+id/toggle_coordinate_system_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true"
+        android:layout_margin="16dp"
+        android:text="隐藏坐标系"
+        android:textSize="12sp"
+        android:padding="8dp"
+        android:background="#80000000"
+        android:textColor="#FFFFFF" />
 
 </RelativeLayout>

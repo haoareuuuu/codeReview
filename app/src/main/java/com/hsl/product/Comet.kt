@@ -18,6 +18,52 @@ import kotlin.math.sqrt // 确保导入 sqrt
 // 彗星类，负责定义彗星的形状、着色器和绘制逻辑
 class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 pathPoints
 
+    // --- 坐标系控制 ---
+    private var showCoordinateSystem = true // 控制坐标系显示的变量
+
+    // --- 坐标系数据 ---
+    // X轴和Y轴的顶点数据，范围从-1到1
+    private val coordinateVertices = floatArrayOf(
+        // X轴 (红色)
+        -1.0f, 0.0f, 0.0f,  // 起点
+        1.0f, 0.0f, 0.0f,   // 终点
+
+        // Y轴 (绿色)
+        0.0f, -1.0f, 0.0f,  // 起点
+        0.0f, 1.0f, 0.0f    // 终点
+    )
+
+    // 坐标轴颜色数据
+    private val coordinateColors = floatArrayOf(
+        // X轴 (红色)
+        1.0f, 0.0f, 0.0f, 1.0f,  // 起点颜色
+        1.0f, 0.0f, 0.0f, 1.0f,  // 终点颜色
+
+        // Y轴 (绿色)
+        0.0f, 1.0f, 0.0f, 1.0f,  // 起点颜色
+        0.0f, 1.0f, 0.0f, 1.0f   // 终点颜色
+    )
+
+    // --- 坐标系刻度数据 ---
+    // 刻度间隔，每0.2个单位显示一个刻度
+    private val tickInterval = 0.2f
+    // 标准刻度线长度
+    private val tickLength = 0.02f
+    // 主要刻度线长度（如0.5、1.0等）
+    private val majorTickLength = 0.04f
+    // 刻度线顶点数据
+    private val tickVertices: FloatArray
+    // 刻度线颜色数据
+    private val tickColors: FloatArray
+    // 刻度线数量
+    private val tickCount: Int
+
+    // 坐标轴和刻度线的顶点缓冲区
+    private val coordinateVertexBuffer: FloatBuffer
+    private val coordinateColorBuffer: FloatBuffer
+    private val tickVertexBuffer: FloatBuffer
+    private val tickColorBuffer: FloatBuffer
+
     // --- 着色器 --- (顶点着色器传递位置，片段着色器设置颜色)
     private val vertexShaderCode = """
         attribute vec4 vPosition; // 顶点位置属性 (x, y, z, w)
@@ -69,6 +115,106 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
     private val numInterpolationPointsPerSegment = 30 // 每个原始线段插值点的数量 (增加点数以提高平滑度)
 
     init {
+        // --- 初始化刻度数据 ---
+        // 计算X轴和Y轴上的刻度数量
+        val xTickCount = (2.0f / tickInterval).toInt() + 1 // -1到1的范围内的刻度数量
+        val yTickCount = xTickCount // X和Y轴刻度数量相同
+        tickCount = xTickCount + yTickCount
+
+        // 创建刻度线顶点数据和颜色数据数组
+        tickVertices = FloatArray(tickCount * 2 * 3) // 每个刻度线有2个点，每个点有3个坐标
+        tickColors = FloatArray(tickCount * 2 * 4) // 每个刻度线有2个点，每个点有4个颜色分量
+
+        var vertexIndex = 0
+        var colorIndex = 0
+
+        // 生成X轴上的刻度线
+        for (i in 0 until xTickCount) {
+            val x = -1.0f + i * tickInterval
+
+            // 跳过原点，因为原点是坐标轴的交叉点
+            if (Math.abs(x) < 0.001f) continue
+
+            // 判断是否是主要刻度线（0.5、1.0等）
+            val isMajorTick = Math.abs(x * 10 % 5) < 0.001f
+            val currentTickLength = if (isMajorTick) majorTickLength else tickLength
+
+            // 刻度线的两个点
+            tickVertices[vertexIndex++] = x
+            tickVertices[vertexIndex++] = 0.0f
+            tickVertices[vertexIndex++] = 0.0f
+
+            tickVertices[vertexIndex++] = x
+            tickVertices[vertexIndex++] = currentTickLength
+            tickVertices[vertexIndex++] = 0.0f
+
+            // 刻度线颜色（红色，与X轴相同）
+            for (j in 0 until 2) { // 每个刻度线有2个点
+                tickColors[colorIndex++] = 1.0f // R
+                tickColors[colorIndex++] = 0.0f // G
+                tickColors[colorIndex++] = 0.0f // B
+                tickColors[colorIndex++] = 0.7f // A（稍微透明）
+            }
+        }
+
+        // 生成Y轴上的刻度线
+        for (i in 0 until yTickCount) {
+            val y = -1.0f + i * tickInterval
+
+            // 跳过原点
+            if (Math.abs(y) < 0.001f) continue
+
+            // 判断是否是主要刻度线（0.5、1.0等）
+            val isMajorTick = Math.abs(y * 10 % 5) < 0.001f
+            val currentTickLength = if (isMajorTick) majorTickLength else tickLength
+
+            // 刻度线的两个点
+            tickVertices[vertexIndex++] = 0.0f
+            tickVertices[vertexIndex++] = y
+            tickVertices[vertexIndex++] = 0.0f
+
+            tickVertices[vertexIndex++] = currentTickLength
+            tickVertices[vertexIndex++] = y
+            tickVertices[vertexIndex++] = 0.0f
+
+            // 刻度线颜色（绿色，与Y轴相同）
+            for (j in 0 until 2) { // 每个刻度线有2个点
+                tickColors[colorIndex++] = 0.0f // R
+                tickColors[colorIndex++] = 1.0f // G
+                tickColors[colorIndex++] = 0.0f // B
+                tickColors[colorIndex++] = 0.7f // A（稍微透明）
+            }
+        }
+
+        // --- 初始化坐标系的顶点缓冲区 ---
+        // 初始化坐标轴顶点缓冲区
+        val coordVB = ByteBuffer.allocateDirect(coordinateVertices.size * 4)
+        coordVB.order(ByteOrder.nativeOrder())
+        coordinateVertexBuffer = coordVB.asFloatBuffer()
+        coordinateVertexBuffer.put(coordinateVertices)
+        coordinateVertexBuffer.position(0)
+
+        // 初始化坐标轴颜色缓冲区
+        val coordCB = ByteBuffer.allocateDirect(coordinateColors.size * 4)
+        coordCB.order(ByteOrder.nativeOrder())
+        coordinateColorBuffer = coordCB.asFloatBuffer()
+        coordinateColorBuffer.put(coordinateColors)
+        coordinateColorBuffer.position(0)
+
+        // 初始化刻度线顶点缓冲区
+        val tickVB = ByteBuffer.allocateDirect(tickVertices.size * 4)
+        tickVB.order(ByteOrder.nativeOrder())
+        tickVertexBuffer = tickVB.asFloatBuffer()
+        tickVertexBuffer.put(tickVertices)
+        tickVertexBuffer.position(0)
+
+        // 初始化刻度线颜色缓冲区
+        val tickCB = ByteBuffer.allocateDirect(tickColors.size * 4)
+        tickCB.order(ByteOrder.nativeOrder())
+        tickColorBuffer = tickCB.asFloatBuffer()
+        tickColorBuffer.put(tickColors)
+        tickColorBuffer.position(0)
+
         // --- 对原始路径进行插值以获得平滑路径 ---
         val smoothPathPoints = if (pathPoints.size >= 2) {
             interpolatePath(pathPoints, numInterpolationPointsPerSegment)
@@ -114,8 +260,8 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
             var normalX = -tangentY
             var normalY = tangentX
             var t = 0f // 第一个点的 t 值为 0
-            var currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
-            var currentAlpha = 1.0f - t
+            var currentHalfWidth = (maxWidth - (maxWidth - minWidth) * t) / 2.0f
+            var currentAlpha = t
 
             // 添加第一个点的两个顶点
             vertexDataList.add(p0.x + normalX * currentHalfWidth)
@@ -167,8 +313,8 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
                 // 更新累计长度
                 accumulatedLength += len1
                 t = if (totalLength > 0) accumulatedLength / totalLength else 0f // 当前点的 t 值
-                currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
-                currentAlpha = 1.0f - t
+                currentHalfWidth = (maxWidth - (maxWidth - minWidth) * t) / 2.0f
+                currentAlpha = t
 
                 // 添加当前点的两个顶点
                 vertexDataList.add(currentP.x + normalX * currentHalfWidth)
@@ -193,8 +339,8 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
             normalX = -tangentY
             normalY = tangentX
             t = 1f // 最后一个点的 t 值为 1
-            currentHalfWidth = (minWidth + (maxWidth - minWidth) * t) / 2.0f
-            currentAlpha = 1.0f - t // Alpha 为 0
+            currentHalfWidth = (maxWidth - (maxWidth - minWidth) * t) / 2.0f
+            currentAlpha = t // Alpha 为 1
 
             // 添加最后一个点的两个顶点
             vertexDataList.add(lastP.x + normalX * currentHalfWidth)
@@ -320,9 +466,125 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         }
     }
 
+    // 绘制坐标系
+    private fun drawCoordinateSystem() {
+        if (!showCoordinateSystem) return // 如果不显示坐标系，则直接返回
+
+        // 使用着色器程序
+        GLES20.glUseProgram(program)
+        checkGlError("glUseProgram - coordinate system")
+
+        // --- 绘制坐标轴 ---
+        // 设置线宽
+        GLES20.glLineWidth(2.0f)
+
+        // 设置顶点位置属性
+        coordinateVertexBuffer.position(0)
+        GLES20.glVertexAttribPointer(
+            positionHandle,
+            COORDS_PER_VERTEX_POS,
+            GLES20.GL_FLOAT,
+            false,
+            COORDS_PER_VERTEX_POS * 4, // 每个顶点只有位置数据，没有Alpha
+            coordinateVertexBuffer
+        )
+        GLES20.glEnableVertexAttribArray(positionHandle)
+
+        // 设置Alpha属性为1.0
+        val fixedAlpha = floatArrayOf(1.0f)
+        GLES20.glVertexAttrib1fv(alphaHandle, fixedAlpha, 0)
+
+        // 绘制X轴
+        GLES20.glUniform4fv(colorUniformHandle, 1, floatArrayOf(1.0f, 0.0f, 0.0f, 1.0f), 0) // 红色
+        GLES20.glDrawArrays(GLES20.GL_LINES, 0, 2) // 绘制第一段线（X轴）
+
+        // 绘制Y轴
+        GLES20.glUniform4fv(colorUniformHandle, 1, floatArrayOf(0.0f, 1.0f, 0.0f, 1.0f), 0) // 绿色
+        GLES20.glDrawArrays(GLES20.GL_LINES, 2, 2) // 绘制第二段线（Y轴）
+
+        // 禁用顶点属性数组
+        GLES20.glDisableVertexAttribArray(positionHandle)
+
+        // --- 绘制刻度线 ---
+        // 设置线宽
+        GLES20.glLineWidth(1.0f) // 标准刻度线宽度
+
+        // 设置顶点位置属性
+        tickVertexBuffer.position(0)
+        GLES20.glVertexAttribPointer(
+            positionHandle,
+            COORDS_PER_VERTEX_POS,
+            GLES20.GL_FLOAT,
+            false,
+            COORDS_PER_VERTEX_POS * 4,
+            tickVertexBuffer
+        )
+        GLES20.glEnableVertexAttribArray(positionHandle)
+
+        // 设置Alpha属性为0.7（稍微透明）
+        val tickAlpha = floatArrayOf(0.7f)
+        GLES20.glVertexAttrib1fv(alphaHandle, tickAlpha, 0)
+
+        // 计算实际的刻度线数量（去除原点后）
+        val actualTickCount = tickCount - 2 // 去除X轴和Y轴上的原点刻度
+
+        // 绘制X轴上的刻度线（红色）
+        GLES20.glUniform4fv(colorUniformHandle, 1, floatArrayOf(1.0f, 0.0f, 0.0f, 0.7f), 0)
+
+        // 计算X轴刻度线数量
+        val xTickCount = (2.0f / tickInterval).toInt() - 1 // 去除原点
+
+        // 绘制X轴刻度线
+        for (i in 0 until xTickCount) {
+            // 计算当前刻度值
+            val x = -1.0f + (i + 1) * tickInterval // +1是因为我们跳过了原点
+
+            // 判断是否是主要刻度线（0.5、1.0等）
+            val isMajorTick = Math.abs(x * 10 % 5) < 0.001f
+
+            // 主要刻度线用更粗的线宽
+            if (isMajorTick) {
+                GLES20.glLineWidth(1.5f)
+            } else {
+                GLES20.glLineWidth(1.0f)
+            }
+
+            // 每个刻度线有2个点
+            GLES20.glDrawArrays(GLES20.GL_LINES, i * 2, 2)
+        }
+
+        // 绘制Y轴上的刻度线（绿色）
+        GLES20.glUniform4fv(colorUniformHandle, 1, floatArrayOf(0.0f, 1.0f, 0.0f, 0.7f), 0)
+
+        // 绘制Y轴刻度线
+        for (i in 0 until xTickCount) { // Y轴刻度线数量与X轴相同
+            // 计算当前刻度值
+            val y = -1.0f + (i + 1) * tickInterval // +1是因为我们跳过了原点
+
+            // 判断是否是主要刻度线（0.5、1.0等）
+            val isMajorTick = Math.abs(y * 10 % 5) < 0.001f
+
+            // 主要刻度线用更粗的线宽
+            if (isMajorTick) {
+                GLES20.glLineWidth(1.5f)
+            } else {
+                GLES20.glLineWidth(1.0f)
+            }
+
+            // 每个刻度线有2个点，从 X轴刻度线后开始
+            GLES20.glDrawArrays(GLES20.GL_LINES, (xTickCount + i) * 2, 2)
+        }
+
+        // 禁用顶点属性数组
+        GLES20.glDisableVertexAttribArray(positionHandle)
+    }
+
     // 绘制彗星，接受外部传入的进度参数
     fun draw(progress: Float = -1f) { // 只传入进度参数，不再需要投影矩阵
-        if (vertexCount == 0) return // 如果没有顶点，则不绘制
+        // 先绘制坐标系（如果启用）
+        drawCoordinateSystem()
+
+        if (vertexCount == 0) return // 如果没有顶点，则不绘制彗星
 
         GLES20.glUseProgram(program) // 使用此 OpenGL 程序进行绘制
         checkGlError("glUseProgram") // 检查错误
@@ -383,8 +645,8 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
         val verticesToDraw = (progressToUse * vertexCount).toInt()
         // 确保顶点数是偶数，因为我们使用 TRIANGLE_STRIP，每段2个顶点
         val count = (verticesToDraw / 2) * 2
-        // 计算起始绘制的顶点索引 (从尾部开始)
-        val first = vertexCount - count
+        // 从头部开始绘制
+        val first = 0
 
         // 只绘制计算出的部分
         if (count > 0) {
@@ -411,6 +673,22 @@ class Comet(private val pathPoints: List<PointF>) { // 添加构造函数参数 
             android.util.Log.e("Comet", "$op: glError $error") // 打印错误日志
             // 根据需要考虑在此处抛出异常
         }
+    }
+
+    /**
+     * 设置坐标系的显示状态
+     * @param show 是否显示坐标系
+     */
+    fun setCoordinateSystemVisible(show: Boolean) {
+        showCoordinateSystem = show
+    }
+
+    /**
+     * 获取坐标系的显示状态
+     * @return 是否显示坐标系
+     */
+    fun isCoordinateSystemVisible(): Boolean {
+        return showCoordinateSystem
     }
 
     companion object {
