@@ -3,6 +3,7 @@ package com.hsl.videstabilization.core.postprocess
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -11,16 +12,13 @@ import android.net.Uri
 import android.util.Log
 import com.hsl.videstabilization.algorithm.motion.MotionEstimator
 import com.hsl.videstabilization.algorithm.motion.MotionEstimatorFactory
-import com.hsl.videstabilization.algorithm.smooth.MotionSmoother
 import com.hsl.videstabilization.algorithm.smooth.MotionSmootherFactory
 import com.hsl.videstabilization.algorithm.smooth.TrajectoryOptimizer
-import com.hsl.videstabilization.api.AlgorithmType
 import com.hsl.videstabilization.api.StabilizationParams
 import com.hsl.videstabilization.api.StabilizerConfig
 import com.hsl.videstabilization.util.OpenCVUtils
 import java.io.File
 import java.nio.ByteBuffer
-import java.util.concurrent.TimeUnit
 
 /**
  * 视频处理器
@@ -143,7 +141,7 @@ class VideoProcessor(
         
         // 解码视频帧并分析运动
         val inputBuffers = decoder.inputBuffers
-        val outputBuffers = decoder.outputBuffers
+        var outputBuffers = decoder.outputBuffers
         val bufferInfo = MediaCodec.BufferInfo()
         var outputDone = false
         var inputDone = false
@@ -259,9 +257,9 @@ class VideoProcessor(
         
         // 解码、稳定和编码视频帧
         val decoderInputBuffers = decoder.inputBuffers
-        val decoderOutputBuffers = decoder.outputBuffers
+        var decoderOutputBuffers = decoder.outputBuffers
         val encoderInputBuffers = encoder.inputBuffers
-        val encoderOutputBuffers = encoder.outputBuffers
+        var encoderOutputBuffers = encoder.outputBuffers
         val decoderBufferInfo = MediaCodec.BufferInfo()
         val encoderBufferInfo = MediaCodec.BufferInfo()
         var decoderOutputDone = false
@@ -425,7 +423,8 @@ class VideoProcessor(
         val bitRate = if (params.outputBitRate > 0) params.outputBitRate else decoderFormat.getInteger(MediaFormat.KEY_BIT_RATE)
         
         val format = MediaFormat.createVideoFormat("video/avc", width, height)
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodec.COLOR_FormatSurface)
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+            MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
         format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, params.keyFrameInterval)

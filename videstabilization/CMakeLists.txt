@@ -13,6 +13,9 @@ find_library(EGL-lib EGL)
 # 添加Android日志库
 find_library(log-lib log)
 
+# 定义日志宏
+add_definitions(-DANDROID_NDK -DLOG_TAG="VideoStabilization")
+
 # 添加Android NDK库
 find_library(android-lib android)
 find_library(jnigraphics-lib jnigraphics)
@@ -32,21 +35,21 @@ include_directories(
 )
 
 # 创建共享库
-#add_library(
-#    videstabilization
-#    SHARED
-#    ${CPP_SOURCES}
-#)
+add_library(
+    videstabilization
+    SHARED
+    ${CPP_SOURCES}
+)
 
 # 链接库
-#target_link_libraries(
-#    videstabilization
-#    ${GLES3-lib}
-#    ${EGL-lib}
-#    ${log-lib}
-#    ${android-lib}
-#    ${jnigraphics-lib}
-#)
+target_link_libraries(
+    videstabilization
+    ${GLES3-lib}
+    ${EGL-lib}
+    ${log-lib}
+    ${android-lib}
+    ${jnigraphics-lib}
+)
 
 # 启用OpenMP (如果需要)
 # find_package(OpenMP)
@@ -55,7 +58,14 @@ include_directories(
 # endif()
 
 # 添加OpenCV支持
-#set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI})
-#find_package(OpenCV REQUIRED)
-#include_directories(${OpenCV_INCLUDE_DIRS})
-#target_link_libraries(videstabilization ${OpenCV_LIBS})
+# 直接指定OpenCV头文件路径和库文件路径
+message(STATUS "Setting up OpenCV manually")
+
+# 添加OpenCV头文件路径
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../opencv/native/jni/include)
+
+# 添加OpenCV库路径
+set(OPENCV_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../opencv/native/libs/${ANDROID_ABI})
+
+# 链接OpenCV库
+target_link_libraries(videstabilization ${OPENCV_LIBS_DIR}/libopencv_java4.so)

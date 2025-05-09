@@ -6,9 +6,11 @@ import com.hsl.videstabilization.api.StabilizationError
 import com.hsl.videstabilization.api.StabilizationListener
 import com.hsl.videstabilization.api.StabilizationParams
 import com.hsl.videstabilization.api.StabilizerConfig
+import com.hsl.videstabilization.codec.StabilizationFrameProcessor
+import com.hsl.videstabilization.codec.VideoCodec
+import com.hsl.videstabilization.codec.VideoTranscoder
 import com.hsl.videstabilization.core.StabilizationTask
 import com.hsl.videstabilization.core.StabilizationTask.TaskState
-import com.hsl.videstabilization.core.postprocess.VideoProcessor
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -74,17 +76,72 @@ class PostProcessStabilizer(
                     return@execute
                 }
 
-                // 创建视频处理器
-                val processor = VideoProcessor(context, config, params)
+                // 创建视频编解码配置
+                val codecConfig = VideoCodec.CodecConfig(
+                    bitRate = params.outputBitRate,
+                    frameRate = params.outputFrameRate,
+                    keyFrameInterval = params.keyFrameInterval,
+                    useHardwareAcceleration = params.useHardwareEncoder
+                )
 
-                // 设置进度回调
-                processor.setProgressCallback { progress ->
-                    task.updateProgress(progress)
-                    listener?.onProgressUpdate(progress)
+                // 创建视频转码器
+                val transcoder = VideoTranscoder(context, inputVideo, outputFile, codecConfig)
+
+                // 创建稳定化帧处理器
+                val stabilizationProcessor = StabilizationFrameProcessor()
+
+                // 设置稳定化参数
+                // TODO: 根据params设置稳定化参数
+
+                // 设置帧处理器
+                transcoder.setFrameProcessor(stabilizationProcessor)
+
+                // 设置回调
+                transcoder.setCallback(object : VideoCodec.CodecCallback {
+                    override fun onProgressUpdate(progress: Float) {
+                        task.updateProgress(progress)
+                        listener?.onProgressUpdate(progress)
+                    }
+
+                    override fun onComplete() {
+                        // 转码完成
+                    }
+
+                    override fun onError(error: String, code: Int) {
+                        task.setFailure(
+                            StabilizationError(
+                                code,
+                                error
+                            )
+                        )
+                        listener?.onError(StabilizationError(code, error))
+                    }
+                })
+
+                // 初始化转码器
+                if (!transcoder.initialize()) {
+                    task.setFailure(
+                        StabilizationError(
+                            StabilizationError.ERROR_INITIALIZATION_FAILED,
+                            "Failed to initialize transcoder"
+                        )
+                    )
+                    return@execute
                 }
 
-                // 处理视频
-                val outputUri = processor.process(inputVideo, outputFile)
+                // 开始转码
+                transcoder.start()
+
+                // 等待转码完成
+                while (transcoder.isRunning()) {
+                    Thread.sleep(100)
+                }
+
+                // 释放资源
+                transcoder.release()
+
+                // 创建输出Uri
+                val outputUri = Uri.fromFile(outputFile)
 
                 // 设置任务成功
                 task.setSuccess(outputUri)
@@ -141,11 +198,18 @@ class PostProcessStabilizer(
     }
 
     /**
+     * 取消当前任务
+     */
+    fun cancelCurrentTask() {
+        currentTask?.cancel()
+    }
+
+    /**
      * 释放资源
      */
     fun release() {
         // 取消当前任务
-        currentTask?.cancel()
+        cancelCurrentTask()
         currentTask = null
 
         // 关闭执行器服务

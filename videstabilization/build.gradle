@@ -26,6 +26,13 @@ android {
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
         }
+
+        // 配置JNI库路径
+        sourceSets {
+            main {
+                jniLibs.srcDirs = ['../opencv/native/libs']
+            }
+        }
     }
 
     buildTypes {
@@ -36,12 +43,12 @@ android {
     }
 
     // 配置CMake
-//    externalNativeBuild {
-//        cmake {
-//            path "CMakeLists.txt"
-//            version "3.22.1"
-//        }
-//    }
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
